@@ -55,7 +55,7 @@ module.exports = function (opts) {
       var cbs = queue
       queue = null
       cbs.forEach(_cb => {
-        _cb.apply(null, err, context)
+        _cb.call(null, err, context)
       })
     }
   }
