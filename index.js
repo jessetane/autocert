@@ -7,9 +7,9 @@ var letsEncryptUrl = 'https://acme-v01.api.letsencrypt.org'
 // var letsEncryptUrl = 'https://acme-staging.api.letsencrypt.org'
 
 var now = new Date().getTime()
-setTimeout(() => {
+setInterval(() => {
   now = new Date().getTime()
-}, 60 * 1000)
+}, 60 * 1000).unref()
 
 module.exports = function (opts) {
   var email = opts.email
