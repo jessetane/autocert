@@ -64,6 +64,7 @@ module.exports = function (opts) {
     var filename = storage + '/' + name + '.json'
     fs.readFile(filename, 'utf8', (err, data) => {
       if (err && err.code !== 'ENOENT') return cb(err)
+      if (!data) return cb()
       try {
         var certificate = JSON.parse(data)
       } catch (err) {
