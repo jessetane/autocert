@@ -1,0 +1,11 @@
+{
+  "name": "autocert",
+  "version": "1.0.0",
+  "description": "Get a TLS options object to automagically certify your domains",
+  "dependencies": {
+    "letiny": "^0.1.1"
+  },
+  "repository": "https://github.com/jessetane/autocert",
+  "author": "jesse.tane@gmail.com",
+  "license": "MIT"
+}
