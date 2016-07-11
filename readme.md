@@ -9,26 +9,25 @@ Obligatory [Let's Encrypt](https://letsencrypt.org/) thingy.
 
 ## Example
 ```javascript
-var fs = require('fs')
 var http = require('http')
 var https = require('https')
-var autocert = require('autocert')
+var autocert = require('./')
+
+var challenges = {}
 
 http.createServer((req, res) => {
-  if (req.url.indexOf('/.well-known/') === 0) {
-    fs.createReadStream(__dirname + req.url)
-      .pipe(res)
+  var proof = challenges[req.url]
+  if (proof) {
+    res.end(proof)
   } else {
-    res.statusCode = 301
-    res.setHeader('location', 'https://mydomain.org')
-    res.end()
+    res.statusCode = 404
+    res.end('not found')
   }
 }).listen(80)
 
-https.createServer(autocert({
-  email: 'webmaster@mydomain.org',
-  storage: '/etc/pki/autocert',
-  challenges: __dirname,
+https.createServer(autocert.tlsOpts({
+  email: 'info@example.com',
+  challenges,
 }), (req, res) => {
   res.end('secure af')
 }).listen(443)
