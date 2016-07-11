@@ -1,107 +1,115 @@
-var fs = require('fs')
 var tls = require('tls')
 var letiny = require('letiny')
-
-var maxCertificateAge = 75 * 24 * 60 * 60 * 1000 // 75 days
-var letsEncryptUrl = 'https://acme-v01.api.letsencrypt.org'
-// var letsEncryptUrl = 'https://acme-staging.api.letsencrypt.org'
 
 var now = new Date().getTime()
 setInterval(() => {
   now = new Date().getTime()
 }, 60 * 1000).unref()
 
-module.exports = function (opts) {
-  var email = opts.email
-  var storage = opts.storage
-  var challenges = opts.challenges
-  if (!email || !storage || !challenges) {
-    throw new Error('missing a required option')
-  }
-  var certificates = {}
-  var queue = null
-  return {
-    SNICallback: (name, cb) => {
-      var certificate = certificates[name]
-      if (!certificate || now - certificate.date > maxCertificateAge) {
-        createContext(name, cb)
-      } else {
-        cb(null, certificate.context)
-      }
-    }
+class AutoCert {
+  constructor (opts) {
+    this.email = opts.email
+    this.url = opts.url || 'https://acme-v01.api.letsencrypt.org'
+    this.maxAge = opts.maxAge || 75 * 24 * 60 * 60 * 1000 // 75 days
+    this.challenges = opts.challenges || {}
+    this.credentials = opts.credentials || {}
+    this.cache = opts.cache === undefined ? {} : opts.cache
+    this.queue = {}
   }
 
-  function createContext (name, _cb) {
-    if (queue) {
-      queue[queue.length] = _cb
+  certify (name, cb) {
+    var queue = this.queue
+    var q = queue[name]
+    if (q && q.length) {
+      q[q.length] = cb
       return
     } else {
-      queue = [ _cb ]
+      q = queue[name] = [ cb ]
     }
-    tryFileSystem(name, (err, certificate) => {
-      if (err) return cb(err)
-      if (certificate) return cb(null, certificate)
-      tryLetsencrypt(name, cb)
+    this._tryLookup(name, (err, credential) => {
+      if (err) return cbwrap(err)
+      if (credential) return cbwrap(null, credential)
+      this._tryLetsencrypt(name, cbwrap)
     })
-    function cb (err, certificate) {
+    var cache = this.cache
+    function cbwrap (err, credential) {
       var context = null
-      if (!err) {
-        certificates[name] = certificate
-        certificate.context = context = new tls.createSecureContext({
-          key: certificate.key,
-          cert: certificate.cert,
-        })
+      if (!err && credential) {
+        context = cache && cache[name]
+        if (!context) {
+          context = new tls.createSecureContext({
+            key: credential.key,
+            cert: credential.cert,
+          })
+          if (cache) {
+            cache[name] = context
+          }
+        }
       }
-      var cbs = queue
-      queue = null
-      cbs.forEach(_cb => {
-        _cb.call(null, err, context)
+      queue[name] = null
+      q.forEach(cb => {
+        cb.call(null, err, context)
       })
     }
   }
 
-  function tryFileSystem (name, cb) {
-    var filename = storage + '/' + name + '.json'
-    fs.readFile(filename, 'utf8', (err, data) => {
-      if (err && err.code !== 'ENOENT') return cb(err)
-      if (!data) return cb()
-      try {
-        var certificate = JSON.parse(data)
-      } catch (err) {
-        return cb(err)
-      }
-      if (!certificate.key || !certificate.cert || isNaN(certificate.date)) {
+  getCredential (name, cb) {
+    cb(null, this.credentials[name])
+  }
+
+  setCredential (name, credential, cb) {
+    this.credentials[name] = credential
+    cb()
+  }
+
+  setChallenge (key, value, cb) {
+    this.challenges[key] = value
+    cb()
+  }
+
+  _tryLookup (name, cb) {
+    this.getCredential(name, (err, credential) => {
+      if (err) return cb(err)
+      if (!credential) return cb()
+      if (!credential.key || !credential.cert || isNaN(credential.date)) {
         cb()
-      } else if (now - certificate.date > maxCertificateAge) {
+      } else if (now - credential.date > this.maxAge) {
         cb()
       } else {
-        cb(null, certificate)
+        cb(null, credential)
       }
     })
   }
 
-  function tryLetsencrypt (name, cb) {
+  _tryLetsencrypt (name, cb) {
     letiny.getCert({
-      url: letsEncryptUrl,
+      url: this.url,
+      email: this.email,
       domains: [ name ],
-      email: email,
-      webroot: challenges,
       agreeTerms: true,
+      challenge: (name, path, data, cb) => {
+        this.setChallenge(path, data, cb)
+      }
     }, (err, cert, key, caCert) => {
       if (err) return cb(err)
-      certificate = {
+      var credential = {
         key: key,
         cert: cert + '\n' + caCert,
         date: new Date().getTime(),
       }
-      var filename = storage + '/' + name + '.json'
-      fs.writeFile(filename, JSON.stringify(certificate), err => {
+      this.setCredential(name, credential, err => {
         if (err) return cb(err)
-        fs.chmod(filename, '600', err => {
-          if (err) return cb(err)
-          cb(null, certificate)
-        })
+        cb(null, credential)
       })
     })
   }
 }
+
+AutoCert.tlsOpts = function (opts) {
+  var autocert = new AutoCert(opts)
+  return {
+    SNICallback: autocert.certify.bind(autocert)
+  }
+}
+
+module.exports = AutoCert
