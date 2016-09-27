@@ -1,6 +1,6 @@
 {
   "name": "autocert",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Get a TLS options object to automagically certify your domains",
   "dependencies": {
     "letiny": "^0.1.1"
