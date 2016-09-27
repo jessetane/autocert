@@ -1,3 +1,5 @@
+'use strict';
+
 var tls = require('tls')
 var letiny = require('letiny')
 
