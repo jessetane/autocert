@@ -84,24 +84,38 @@ class AutoCert {
   }
 
   _tryLetsencrypt (name, cb) {
-    letiny.getCert({
-      url: this.url,
-      email: this.email,
-      domains: [ name ],
-      agreeTerms: true,
-      challenge: (name, path, data, cb) => {
-        this.setChallenge(path, data, cb)
-      }
-    }, (err, cert, key, caCert) => {
+    this.getCredential(this.email, (err, accountKey) => {
       if (err) return cb(err)
-      var credential = {
-        key: key,
-        cert: cert + '\n' + caCert,
-        date: new Date().getTime(),
-      }
-      this.setCredential(name, credential, err => {
+      letiny.getCert({
+        url: this.url,
+        email: this.email,
+        accountKey,
+        domains: [ name ],
+        agreeTerms: true,
+        challenge: (name, path, data, cb) => {
+          this.setChallenge(path, data, cb)
+        }
+      }, (err, cert, key, caCert, _accountKey) => {
         if (err) return cb(err)
-        cb(null, credential)
+        var credential = {
+          key: key,
+          cert: cert + '\n' + caCert,
+          date: new Date().getTime(),
+        }
+        if (!accountKey) {
+          this.setCredential(this.email, _accountKey, err => {
+            if (err) return cb(err)
+            setCredential.call(this)
+          })
+        } else {
+          setCredential.call(this)
+        }
+        function setCredential () {
+          this.setCredential(name, credential, err => {
+            if (err) return cb(err)
+            cb(null, credential)
+          })
+        }
       })
     })
   }
