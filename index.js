@@ -1,7 +1,7 @@
 'use strict';
 
 var tls = require('tls')
-var letiny = require('letiny')
+var acme = require('acme-client')
 
 var now = new Date().getTime()
 setInterval(() => {
@@ -65,8 +65,12 @@ class AutoCert {
   }
 
   setChallenge (key, value, cb) {
-    this.challenges[key] = value
-    cb()
+    if (value) {
+      this.challenges[key] = value
+    } else {
+      delete this.challenges[key]
+    }
+    if (cb) cb()
   }
 
   _tryLookup (name, cb) {
@@ -86,37 +90,50 @@ class AutoCert {
   _tryLetsencrypt (name, cb) {
     this.getCredential(this.email, (err, accountKey) => {
       if (err) return cb(err)
-      letiny.getCert({
-        url: this.url,
-        email: this.email,
+      if (!accountKey) return cb(new Error('Account creation not yet supported'))
+      var client = new acme.Client({
+        directoryUrl: this.url,
         accountKey,
-        domains: [ name ],
-        agreeTerms: true,
-        challenge: (name, path, data, cb) => {
-          this.setChallenge(path, data, cb)
+      })
+      var [key, csr] = await acme.forge.createCsr({
+        commonName: name
+      })
+      async function challengeCreateFn (authz, challenge, keyAuthorization) {
+        if (challenge.type === 'http-01') {
+          var path = `/.well-known/acme-challenge/${challenge.token}`
+          this.setChallenge(path, keyAuthorization)
+        } else {
+          throw new Error('unknown challenge type', challenge.type)
         }
-      }, (err, cert, key, caCert, _accountKey) => {
-        if (err) return cb(err)
+      }
+      async function challengeRemoveFn (authz, challenge) {
+        if (challenge.type === 'http-01') {
+          var path = `/.well-known/acme-challenge/${challenge.token}`
+          this.setChallenge(path, null)
+        } else {
+          throw new Error('unknown challenge type', challenge.type)
+        }
+      }
+      try {
+        var cert = await client.auto({
+          csr,
+          email: this.email,
+          termsOfServiceAgreed: true,
+          challengeCreateFn,
+          challengeRemoveFn
+        })
         var credential = {
-          key: key,
-          cert: cert + '\n' + caCert,
+          key: key.toString(),
+          cert: cert.toString()
           date: new Date().getTime(),
         }
-        if (!accountKey) {
-          this.setCredential(this.email, _accountKey, err => {
-            if (err) return cb(err)
-            setCredential.call(this)
-          })
-        } else {
-          setCredential.call(this)
-        }
-        function setCredential () {
-          this.setCredential(name, credential, err => {
-            if (err) return cb(err)
-            cb(null, credential)
-          })
-        }
-      })
+        this.setCredential(name, credential, err => {
+          if (err) return cb(err)
+          cb(null, credential)
+        })
+      } catch (err) {
+        cb(err)
+      }
     })
   }
 }

@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "description": "Get a TLS options object to automagically certify your domains",
   "dependencies": {
+    "acme-client": "^4.0.0",
     "letiny": "^0.1.1"
   },
   "repository": "https://github.com/jessetane/autocert",
