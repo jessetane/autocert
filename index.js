@@ -95,45 +95,49 @@ class AutoCert {
         directoryUrl: this.url,
         accountKey,
       })
-      var [key, csr] = await acme.forge.createCsr({
-        commonName: name
-      })
-      async function challengeCreateFn (authz, challenge, keyAuthorization) {
-        if (challenge.type === 'http-01') {
-          var path = `/.well-known/acme-challenge/${challenge.token}`
-          this.setChallenge(path, keyAuthorization)
-        } else {
-          throw new Error('unknown challenge type', challenge.type)
+      var self = this
+      async function go () {
+        var [key, csr] = await acme.forge.createCsr({
+          commonName: name
+        })
+        async function challengeCreateFn (authz, challenge, keyAuthorization) {
+          if (challenge.type === 'http-01') {
+            var path = `/.well-known/acme-challenge/${challenge.token}`
+            self.setChallenge(path, keyAuthorization)
+          } else {
+            throw new Error('unknown challenge type', challenge.type)
+          }
         }
-      }
-      async function challengeRemoveFn (authz, challenge) {
-        if (challenge.type === 'http-01') {
-          var path = `/.well-known/acme-challenge/${challenge.token}`
-          this.setChallenge(path, null)
-        } else {
-          throw new Error('unknown challenge type', challenge.type)
+        async function challengeRemoveFn (authz, challenge) {
+          if (challenge.type === 'http-01') {
+            var path = `/.well-known/acme-challenge/${challenge.token}`
+            self.setChallenge(path, null)
+          } else {
+            throw new Error('unknown challenge type', challenge.type)
+          }
         }
-      }
-      try {
         var cert = await client.auto({
           csr,
-          email: this.email,
+          email: self.email,
           termsOfServiceAgreed: true,
           challengeCreateFn,
           challengeRemoveFn
         })
         var credential = {
           key: key.toString(),
-          cert: cert.toString()
+          cert: cert.toString(),
           date: new Date().getTime(),
         }
-        this.setCredential(name, credential, err => {
-          if (err) return cb(err)
-          cb(null, credential)
+        return new Promise((res, rej) => {
+          self.setCredential(name, credential, err => {
+            if (err) return rej(err)
+            res(credential)
+          })
         })
-      } catch (err) {
-        cb(err)
       }
+      go().then(credential => {
+        cb(null, credential)
+      }).catch(cb)
     })
   }
 }
