@@ -11,7 +11,7 @@ setInterval(() => {
 class AutoCert {
   constructor (opts) {
     this.email = opts.email
-    this.url = opts.url || 'https://acme-v01.api.letsencrypt.org'
+    this.url = opts.url || 'https://acme-v02.api.letsencrypt.org/directory'
     this.maxAge = opts.maxAge || 75 * 24 * 60 * 60 * 1000 // 75 days
     this.challenges = opts.challenges || {}
     this.credentials = opts.credentials || {}
