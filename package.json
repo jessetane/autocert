@@ -1,6 +1,6 @@
 {
   "name": "autocert",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Get a TLS options object to automagically certify your domains",
   "dependencies": {
     "acme-client": "^5.0.0"
