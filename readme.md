@@ -5,7 +5,7 @@ Get a TLS options object that will automagically certify your domains.
 Obligatory [Let's Encrypt](https://letsencrypt.org/) thingy.
 
 ## How
-[letiny](https://github.com/anatolsommer/letiny)
+[acme-client](https://github.com/publishlab/node-acme-client)
 
 ## Example
 ```javascript
