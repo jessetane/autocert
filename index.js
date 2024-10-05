@@ -90,14 +90,17 @@ class AutoCert {
   _tryLetsencrypt (name, cb) {
     this.getCredential(this.email, (err, accountKey) => {
       if (err) return cb(err)
-      if (!accountKey) return cb(new Error('Account creation not yet supported'))
-      var client = new acme.Client({
-        directoryUrl: this.url,
-        accountKey,
-      })
       var self = this
       async function go () {
-        var [key, csr] = await acme.forge.createCsr({
+        if (!accountKey) {
+          accountKey = (await acme.crypto.createPrivateEcdsaKey()).toString()
+          self.credentials[self.email] = accountKey
+        }
+        var client = new acme.Client({
+          directoryUrl: self.url,
+          accountKey,
+        })
+        var [key, csr] = await acme.crypto.createCsr({
           commonName: name
         })
         async function challengeCreateFn (authz, challenge, keyAuthorization) {
